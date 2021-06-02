@@ -1,5 +1,5 @@
 [package]
-name = "file"
+name = "queue"
 version = "0.1.0"
 authors = ["Guillaume <Tazoeur> Latour <g0latour@gmail.com>"]
 edition = "2018"
