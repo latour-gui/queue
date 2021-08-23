@@ -1,7 +1,10 @@
-use crate::measures::{theoretic_p_off, theoretic_p_setup, theoretic_stay_avg, Data};
+use crate::measures::{
+    theoretic_p_off_exp, theoretic_p_setup_exp, theoretic_stay_avg_erlang, theoretic_stay_avg_exp,
+    Data,
+};
 use plotters::prelude::*;
 
-pub fn print_avg_stay_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn print_avg_stay_graph_for_exp(values: &Vec<Data>) -> Result<(), Box<dyn std::error::Error>> {
     let file_name: &'static str = "images/exp_avg_stay_by_rho.png";
     let title: &'static str = "Average stay time by rho";
 
@@ -10,7 +13,7 @@ pub fn print_avg_stay_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error
 
     let theoretical_avg_stay = values
         .iter()
-        .map(|v| theoretic_stay_avg(v.rho, v.mu, v.theta))
+        .map(|v| theoretic_stay_avg_exp(v.rho, v.mu.unwrap(), v.theta))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
@@ -53,8 +56,82 @@ pub fn print_avg_stay_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-pub fn print_p_setup_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error::Error>> {
-    let file_name: &'static str = "images/exp_p_setup_by_rho.png";
+pub fn print_avg_stay_graph_for_erlang(
+    values: &Vec<Data>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let file_name: &'static str = "images/erlang_avg_stay_by_rho.png";
+    let title: &'static str = "Average stay time by rho";
+
+    let width = 640;
+    let height = 480;
+
+    let theoretical_avg_stay = values
+        .iter()
+        .map(|v| {
+            let k = v.k.unwrap() as f64;
+            let beta = v.beta.unwrap();
+
+            let expectation_start: f64 = v.lambda;
+            let second_order_moment_start: f64 = v.lambda;
+
+            let expectation_service: f64 = k * beta;
+            let second_order_moment_service: f64 = k * beta * beta;
+
+            theoretic_stay_avg_erlang(
+                v.rho,
+                expectation_start,
+                second_order_moment_start,
+                v.lambda,
+                expectation_service,
+                second_order_moment_service,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
+
+    let root = BitMapBackend::new(file_name, (width, height)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 50).into_font())
+        .margin(5)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_2d(0f64..1f64, 0f64..20f64)?;
+
+    chart.configure_mesh().draw()?;
+
+    chart
+        .draw_series(LineSeries::new(
+            rhos.iter().cloned().zip(theoretical_avg_stay),
+            &GREEN,
+        ))?
+        .label("theoretical 𝔼[S]")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
+
+    chart
+        .draw_series(
+            values
+                .iter()
+                .map(|v| Circle::new((v.rho, v.avg_stay_time), 2, RED.filled())),
+        )?
+        .label("𝔼[S]")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    chart
+        .configure_series_labels()
+        .position(SeriesLabelPosition::UpperRight)
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()?;
+    Ok(())
+}
+
+pub fn print_p_setup_graph(
+    values: &Vec<Data>,
+    file_name: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let title: &'static str = "P(setup) time by rho";
 
     let width = 640;
@@ -62,7 +139,7 @@ pub fn print_p_setup_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error:
 
     let theoretical_p_setup = values
         .iter()
-        .map(|v| theoretic_p_setup(v.rho, v.lambda, v.theta))
+        .map(|v| theoretic_p_setup_exp(v.rho, v.lambda, v.theta))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
@@ -105,8 +182,10 @@ pub fn print_p_setup_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-pub fn print_p_off_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error::Error>> {
-    let file_name: &'static str = "images/exp_p_off_by_rho.png";
+pub fn print_p_off_graph(
+    values: &Vec<Data>,
+    file_name: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let title: &'static str = "P(off) time by rho";
 
     let width = 640;
@@ -114,7 +193,7 @@ pub fn print_p_off_graph(values: &Vec<Data>) -> Result<(), Box<dyn std::error::E
 
     let theoretical_p_off = values
         .iter()
-        .map(|v| theoretic_p_off(v.rho, v.lambda, v.theta))
+        .map(|v| theoretic_p_off_exp(v.rho, v.lambda, v.theta))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();

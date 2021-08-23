@@ -20,7 +20,7 @@ pub fn generator(parameter: &Parameter, n: usize) -> Vec<f64> {
             .sample_iter(&mut rand::thread_rng())
             .take(n)
             .collect(),
-        Parameter::Erlang(p) => Gamma::new(p.k as f64, p.mu)
+        Parameter::Erlang(p) => Gamma::new(p.k as f64, p.beta)
             .unwrap()
             .sample_iter(&mut rand::thread_rng())
             .take(n)
@@ -43,8 +43,8 @@ pub struct ExponentialParameter {
 pub struct ErlangParameter {
     /// Shape parameter for an Erlang distribution
     pub k: usize,
-    /// Scale parameter for an Erlang distribution. The scale mu = 1/lambda, with a rate lambda.
-    pub mu: f64,
+    /// Scale parameter for an Erlang distribution. The scale beta = 1/lambda, with a rate lambda.
+    pub beta: f64,
 }
 
 /// Enumeration of available parameter types
