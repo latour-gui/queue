@@ -67,25 +67,7 @@ pub fn print_avg_stay_graph_for_erlang(
 
     let theoretical_avg_stay = values
         .iter()
-        .map(|v| {
-            let k = v.k.unwrap() as f64;
-            let beta = v.beta.unwrap();
-
-            let expectation_start: f64 = v.lambda;
-            let second_order_moment_start: f64 = v.lambda;
-
-            let expectation_service: f64 = k * beta;
-            let second_order_moment_service: f64 = k * beta * beta;
-
-            theoretic_stay_avg_erlang(
-                v.rho,
-                expectation_start,
-                second_order_moment_start,
-                v.lambda,
-                expectation_service,
-                second_order_moment_service,
-            )
-        })
+        .map(|v| theoretic_stay_avg_erlang(v.lambda, v.theta, v.rho, v.k.unwrap(), v.beta.unwrap()))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();

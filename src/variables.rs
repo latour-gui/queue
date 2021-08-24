@@ -13,8 +13,8 @@ pub fn generator(parameter: &Parameter, n: usize) -> Vec<f64> {
                 .unwrap()
                 .sample_iter(&mut rand::thread_rng()) // generator following a poisson distribution
                 .take(n) // iter n times (generate n values)
-                .collect()
-        } // collect values into a nice `Vec`tor
+                .collect() // collect values into a nice `Vec`tor
+        }
         Parameter::Exponential(p) => Exp::new(p.lambda)
             .unwrap()
             .sample_iter(&mut rand::thread_rng())

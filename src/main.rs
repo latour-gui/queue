@@ -17,7 +17,8 @@ use crate::graphs::{
     print_p_setup_graph,
 };
 use indicatif::ProgressIterator;
-use rayon::prelude::*;
+use measures::Mean;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use variables::Parameter;
 
 /// Entry point of the program
@@ -33,12 +34,10 @@ fn main() {
 
 fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
     let lambda = 1.0;
-    // let mu = 1.0;
 
     let mut values: Vec<Data> = Vec::new();
     for &rho in rhos.iter().progress() {
         let mu = lambda / rho;
-        // let lambda = mu * rho;
 
         // simulations are computed in parallel
         let simulations = (0..=simulations_by_batch)
@@ -81,10 +80,11 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
 
 fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
     let mut values: Vec<Data> = Vec::new();
-    let k = 10; // erlang shape
-    let beta = 1.0; // erlang scale -> /!\ rate = 1/beta
+    let k: usize = 10; // Erlang shape
+    let lambda = 1.0; // Poisson param
+    let mut d: Vec<f64> = Vec::new();
     for &rho in rhos.iter().progress() {
-        let lambda = rho / (k as f64 * beta); // Poisson param
+        let beta = rho / lambda / k as f64; // Erlang scale -> /!\ rate = 1/beta
 
         // simulations are computed in parallel
         let simulations = (0..=simulations_by_batch)
@@ -93,8 +93,18 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
             .map(|_| erlang_service_time(arrivals_number, lambda, theta, k, beta))
             .collect::<Vec<Simulation>>();
 
-        let avg_stay_time =
-            simulations.par_iter().map(|s| s.avg_stay()).sum::<f64>() / simulations.len() as f64;
+        let avg_stay_time = simulations
+            .par_iter()
+            .map(|s: &Simulation| s.avg_stay())
+            .sum::<f64>()
+            / simulations.len() as f64;
+
+        d.push(
+            simulations
+                .iter()
+                .map(|s: &Simulation| s.second_order_moment_waiting_delay())
+                .calculate_mean(),
+        );
 
         values.push(Data {
             rho,
@@ -120,6 +130,11 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
     let _ = print_avg_stay_graph_for_erlang(&values);
     let _ = print_p_setup_graph(&values, "images/erlang_p_setup_by_rho.png");
     let _ = print_p_off_graph(&values, "images/erlang_p_off_by_rho.png");
+
+    print!(
+        "E[W²] = 1/n * sum( (W_i - E[W])² ) = {}",
+        d.iter().calculate_mean()
+    );
 }
 
 /// Wrapper for the queue function, M/G/1 with service time distributed as exponential

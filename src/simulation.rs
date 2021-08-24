@@ -94,4 +94,8 @@ impl Simulation {
     pub fn probability_server_off(&self) -> f64 {
         self.nap_times.iter().sum::<f64>() / self.total_time.unwrap()
     }
+
+    pub fn second_order_moment_waiting_delay(&self) -> f64 {
+        self.delays.iter().map(|d| d * d).sum::<f64>() / self.delays.len() as f64
+    }
 }
