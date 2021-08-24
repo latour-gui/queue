@@ -5,7 +5,9 @@ pub struct Data {
     pub mu: Option<f64>,   // only for exp
     pub k: Option<usize>,  // only for erlang
     pub beta: Option<f64>, // only for erlang
-    pub theta: f64,
+    pub theta: Option<f64>,
+    pub w_k: Option<usize>,
+    pub w_beta: Option<f64>,
     pub avg_stay_time: f64,
     pub corrected_standard_deviation_avg_stay: f64,
     pub probability_p_off: f64,
@@ -50,17 +52,24 @@ pub fn theoretic_p_setup_gen(rho: f64, lambda: f64, expectation_start: f64) -> f
     (1.0 - rho) * expectation_start / (1.0 / lambda + expectation_start)
 }
 
-pub fn theoretic_stay_avg_erlang(lambda: f64, theta: f64, rho: f64, k: usize, beta: f64) -> f64 {
+pub fn theoretic_stay_avg_erlang(
+    lambda: f64,
+    w_k: usize,
+    w_beta: f64,
+    rho: f64,
+    k: usize,
+    beta: f64,
+) -> f64 {
     assert!(1.0 < (1.0 / beta));
     let e_b = 1.0 / ((1.0 - beta).powi(k as i32)); // with moment generator
     let e_b = k as f64 * beta; // mean
-    let e_t = 1.0 / (1.0 - 1.0 / theta); // with moment generator
-    let e_t = 1.0 / theta; // mean
+                               // let e_t = 1.0 / (1.0 - 1.0 / theta); // with moment generator
+    let e_t = w_k as f64 * w_beta;
 
-    let e_bb = k as f64 / lambda / lambda; // variance
     let e_bb = 1.0 / ((1.0 - 2.0 * beta).powi(k as i32)); // with moment generator
-    let e_tt = theta * theta; // variance
-    let e_tt = 1.0 / (1.0 - 2.0 / theta); // with moment generator
+    let e_bb = k as f64 / lambda / lambda; // variance
+                                           // let e_tt = 1.0 / (1.0 - 2.0 / theta); // with moment generator
+    let e_tt = w_k as f64 * w_beta * w_beta; // variance
 
     let e_rb = e_bb / 2.0 / e_b;
     let e_rt = e_tt / 2.0 / e_t;

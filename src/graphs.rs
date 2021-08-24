@@ -15,7 +15,7 @@ pub fn print_avg_stay_graph_for_exp(values: &Vec<Data>) -> Result<(), Box<dyn st
 
     let theoretical_avg_stay = values
         .iter()
-        .map(|v| theoretic_stay_avg_exp(v.rho, v.mu.unwrap(), v.theta))
+        .map(|v| theoretic_stay_avg_exp(v.rho, v.mu.unwrap(), v.theta.unwrap()))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
@@ -136,7 +136,16 @@ pub fn print_avg_stay_graph_for_erlang(
 
     let theoretical_avg_stay = values
         .iter()
-        .map(|v| theoretic_stay_avg_erlang(v.lambda, v.theta, v.rho, v.k.unwrap(), v.beta.unwrap()))
+        .map(|v| {
+            theoretic_stay_avg_erlang(
+                v.lambda,
+                v.w_k.unwrap(),
+                v.w_beta.unwrap(),
+                v.rho,
+                v.k.unwrap(),
+                v.beta.unwrap(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
@@ -258,7 +267,7 @@ pub fn print_p_setup_graph(
 
     let theoretical_p_setup = values
         .iter()
-        .map(|v| theoretic_p_setup_exp(v.rho, v.lambda, v.theta))
+        .map(|v| theoretic_p_setup_exp(v.rho, v.lambda, v.theta.unwrap()))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();
@@ -376,7 +385,7 @@ pub fn print_p_off_graph(
 
     let theoretical_p_off = values
         .iter()
-        .map(|v| theoretic_p_off_exp(v.rho, v.lambda, v.theta))
+        .map(|v| theoretic_p_off_exp(v.rho, v.lambda, v.theta.unwrap()))
         .collect::<Vec<_>>();
 
     let rhos = values.iter().map(|v| v.rho).collect::<Vec<_>>();

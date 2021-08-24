@@ -29,8 +29,11 @@ fn main() {
 
     let theta = 0.6; // parameter for the warmup (setup) random distribution (exp)
 
-    launch_exp(simulations_by_batch, arrivals_number, theta, &rhos);
-    launch_erlang(simulations_by_batch, arrivals_number, theta, &rhos);
+    // launch_exp(simulations_by_batch, arrivals_number, theta, &rhos);
+
+    let w_k = 10;
+    let w_beta = 0.4;
+    launch_erlang(simulations_by_batch, arrivals_number, w_k, w_beta, &rhos);
 }
 
 fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
@@ -93,7 +96,9 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
             mu: Some(mu),
             k: None,
             beta: None,
-            theta,
+            theta: Some(theta),
+            w_k: None,
+            w_beta: None,
             avg_stay_time,
             corrected_standard_deviation_avg_stay,
             probability_p_off,
@@ -108,7 +113,13 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
     let _ = print_p_off_graph(&values, "images/exp_p_off_by_rho");
 }
 
-fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
+fn launch_erlang(
+    simulations_by_batch: usize,
+    arrivals_number: usize,
+    w_k: usize,
+    w_beta: f64,
+    rhos: &[f64],
+) {
     let mut values: Vec<Data> = Vec::new();
     let k: usize = 5; // Erlang shape
     let lambda = 1.0; // Poisson param
@@ -120,7 +131,7 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
         let simulations = (0..=simulations_by_batch)
             .collect::<Vec<_>>()
             .par_iter()
-            .map(|_| erlang_service_time(arrivals_number, lambda, theta, k, beta))
+            .map(|_| erlang_service_time(arrivals_number, lambda, w_k, w_beta, k, beta))
             .collect::<Vec<Simulation>>();
 
         let avg_stay_time = simulations
@@ -177,7 +188,9 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
             mu: None,
             k: Some(k),
             beta: Some(beta),
-            theta,
+            theta: None,
+            w_k: Some(w_k),
+            w_beta: Some(w_beta),
             avg_stay_time,
             corrected_standard_deviation_avg_stay,
             probability_p_off,
@@ -188,8 +201,8 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
         });
     }
     let _ = print_avg_stay_graph_for_erlang(&values);
-    let _ = print_p_setup_graph(&values, "images/erlang_p_setup_by_rho");
-    let _ = print_p_off_graph(&values, "images/erlang_p_off_by_rho");
+    // let _ = print_p_setup_graph(&values, "images/erlang_p_setup_by_rho");
+    // let _ = print_p_off_graph(&values, "images/erlang_p_off_by_rho");
 }
 
 /// Wrapper for the queue function, M/G/1 with service time distributed as exponential
@@ -215,12 +228,22 @@ fn exp_service_time(n: usize, lambda: f64, mu: f64, theta: f64) -> Simulation {
 /// service: erlang of parameters k, beta (beta is scale)
 /// warmup: exponential of parameter theta
 /// n people are allowed to enter the queue
-fn erlang_service_time(n: usize, lambda: f64, theta: f64, k: usize, beta: f64) -> Simulation {
+fn erlang_service_time(
+    n: usize,
+    lambda: f64,
+    w_k: usize,
+    w_beta: f64,
+    k: usize,
+    beta: f64,
+) -> Simulation {
     assert!(lambda * k as f64 * beta < 1.0);
 
     let inter_arrival_param = Parameter::Poisson(PoissonParameter { lambda });
     let service_param = Parameter::Erlang(ErlangParameter { k, beta });
-    let warming_up_param = Parameter::Exponential(ExponentialParameter { lambda: theta });
+    let warming_up_param = Parameter::Erlang(ErlangParameter {
+        k: w_k,
+        beta: w_beta,
+    });
 
     queue(n, inter_arrival_param, service_param, warming_up_param).unwrap()
 }
