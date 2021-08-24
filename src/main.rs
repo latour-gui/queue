@@ -8,7 +8,7 @@ pub mod measures;
 pub mod simulation;
 pub mod variables;
 
-use crate::measures::Data;
+use crate::measures::{corrected_standard_deviation, Data};
 use crate::simulation::Simulation;
 use crate::variables::{generator, ErlangParameter, ExponentialParameter, PoissonParameter};
 
@@ -23,10 +23,11 @@ use variables::Parameter;
 
 /// Entry point of the program
 fn main() {
-    let simulations_by_batch = 100; // number of simulations
-    let arrivals_number = 1000; // number of arrivals in our system
-    let theta = 0.4; // parameter for the warmup (setup) random distribution (exp)
+    let simulations_by_batch = 300; // number of simulations
+    let arrivals_number = 400; // number of arrivals in our system
     let rhos = itertools_num::linspace(0.05, 0.95, 50).collect::<Vec<f64>>();
+
+    let theta = 0.6; // parameter for the warmup (setup) random distribution (exp)
 
     launch_exp(simulations_by_batch, arrivals_number, theta, &rhos);
     launch_erlang(simulations_by_batch, arrivals_number, theta, &rhos);
@@ -47,10 +48,44 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
             .collect::<Vec<Simulation>>();
 
         let avg_stay_time = simulations
-            .par_iter()
+            .iter()
             .map(|s: &Simulation| s.avg_stay())
-            .sum::<f64>()
-            / simulations.len() as f64;
+            .calculate_mean();
+
+        let probability_p_off = simulations
+            .iter()
+            .map(|s: &Simulation| s.probability_server_off())
+            .calculate_mean();
+
+        let probability_p_setup = simulations
+            .iter()
+            .map(|s: &Simulation| s.probability_server_setup())
+            .calculate_mean();
+
+        let corrected_standard_deviation_avg_stay = f64::sqrt(
+            1.0 / (simulations_by_batch - 1) as f64
+                * simulations
+                    .iter()
+                    .map(|s: &Simulation| (s.avg_stay() - avg_stay_time).powi(2))
+                    .sum::<f64>(),
+        );
+        let corrected_standard_deviation_p_off = f64::sqrt(
+            1.0 / (simulations_by_batch - 1) as f64
+                * simulations
+                    .iter()
+                    .map(|s: &Simulation| (s.probability_server_off() - probability_p_off).powi(2))
+                    .sum::<f64>(),
+        );
+
+        let corrected_standard_deviation_p_setup = f64::sqrt(
+            1.0 / (simulations_by_batch - 1) as f64
+                * simulations
+                    .iter()
+                    .map(|s: &Simulation| {
+                        (s.probability_server_setup() - probability_p_setup).powi(2)
+                    })
+                    .sum::<f64>(),
+        );
 
         values.push(Data {
             rho,
@@ -60,29 +95,24 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
             beta: None,
             theta,
             avg_stay_time,
-            probability_p_off: simulations
-                .iter()
-                .map(|s: &Simulation| s.probability_server_off())
-                .sum::<f64>()
-                / simulations.len() as f64,
-            probability_p_setup: simulations
-                .iter()
-                .map(|s: &Simulation| s.probability_server_setup())
-                .sum::<f64>()
-                / simulations.len() as f64,
+            corrected_standard_deviation_avg_stay,
+            probability_p_off,
+            corrected_standard_deviation_p_off,
+            probability_p_setup,
+            corrected_standard_deviation_p_setup,
             n_simulations: simulations_by_batch,
         });
     }
     let _ = print_avg_stay_graph_for_exp(&values);
-    let _ = print_p_setup_graph(&values, "images/exp_p_setup_by_rho.png");
-    let _ = print_p_off_graph(&values, "images/exp_p_off_by_rho.png");
+    let _ = print_p_setup_graph(&values, "images/exp_p_setup_by_rho");
+    let _ = print_p_off_graph(&values, "images/exp_p_off_by_rho");
 }
 
 fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
     let mut values: Vec<Data> = Vec::new();
-    let k: usize = 10; // Erlang shape
+    let k: usize = 5; // Erlang shape
     let lambda = 1.0; // Poisson param
-    let mut d: Vec<f64> = Vec::new();
+    let mut d: Option<f64> = None;
     for &rho in rhos.iter().progress() {
         let beta = rho / lambda / k as f64; // Erlang scale -> /!\ rate = 1/beta
 
@@ -94,17 +124,52 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
             .collect::<Vec<Simulation>>();
 
         let avg_stay_time = simulations
-            .par_iter()
+            .iter()
             .map(|s: &Simulation| s.avg_stay())
-            .sum::<f64>()
-            / simulations.len() as f64;
+            .calculate_mean();
 
-        d.push(
-            simulations
-                .iter()
-                .map(|s: &Simulation| s.second_order_moment_waiting_delay())
-                .calculate_mean(),
+        let probability_p_off = simulations
+            .iter()
+            .map(|s: &Simulation| s.probability_server_off())
+            .calculate_mean();
+
+        let probability_p_setup = simulations
+            .iter()
+            .map(|s: &Simulation| s.probability_server_setup())
+            .calculate_mean();
+
+        let corrected_standard_deviation_avg_stay = corrected_standard_deviation(
+            avg_stay_time,
+            &simulations.iter().map(|s| s.avg_stay()).collect::<Vec<_>>(),
         );
+
+        let corrected_standard_deviation_p_off = corrected_standard_deviation(
+            probability_p_off,
+            &simulations
+                .iter()
+                .map(|s| s.probability_server_off())
+                .collect::<Vec<_>>(),
+        );
+        let corrected_standard_deviation_p_setup = corrected_standard_deviation(
+            probability_p_setup,
+            &simulations
+                .iter()
+                .map(|s| s.probability_server_setup())
+                .collect::<Vec<_>>(),
+        );
+        if rho > 0.5 && d == None {
+            d = Some(
+                simulations
+                    .iter()
+                    .map(|s: &Simulation| s.second_order_moment_waiting_delay())
+                    .calculate_mean(),
+            );
+            print!(
+                "E[W²] = sum( (W_i - E[W])² ) = {} ; for rho = {}",
+                d.unwrap(),
+                rho
+            );
+        }
 
         values.push(Data {
             rho,
@@ -114,27 +179,17 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
             beta: Some(beta),
             theta,
             avg_stay_time,
-            probability_p_off: simulations
-                .iter()
-                .map(|s: &Simulation| s.probability_server_off())
-                .sum::<f64>()
-                / simulations.len() as f64,
-            probability_p_setup: simulations
-                .iter()
-                .map(|s: &Simulation| s.probability_server_setup())
-                .sum::<f64>()
-                / simulations.len() as f64,
+            corrected_standard_deviation_avg_stay,
+            probability_p_off,
+            corrected_standard_deviation_p_off,
+            probability_p_setup,
+            corrected_standard_deviation_p_setup,
             n_simulations: simulations_by_batch,
         });
     }
     let _ = print_avg_stay_graph_for_erlang(&values);
-    let _ = print_p_setup_graph(&values, "images/erlang_p_setup_by_rho.png");
-    let _ = print_p_off_graph(&values, "images/erlang_p_off_by_rho.png");
-
-    print!(
-        "E[W²] = 1/n * sum( (W_i - E[W])² ) = {}",
-        d.iter().calculate_mean()
-    );
+    let _ = print_p_setup_graph(&values, "images/erlang_p_setup_by_rho");
+    let _ = print_p_off_graph(&values, "images/erlang_p_off_by_rho");
 }
 
 /// Wrapper for the queue function, M/G/1 with service time distributed as exponential

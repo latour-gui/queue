@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct Data {
     pub rho: f64,
     pub lambda: f64,
@@ -6,8 +7,11 @@ pub struct Data {
     pub beta: Option<f64>, // only for erlang
     pub theta: f64,
     pub avg_stay_time: f64,
+    pub corrected_standard_deviation_avg_stay: f64,
     pub probability_p_off: f64,
+    pub corrected_standard_deviation_p_off: f64,
     pub probability_p_setup: f64,
+    pub corrected_standard_deviation_p_setup: f64,
     pub n_simulations: usize,
 }
 pub trait Mean {
@@ -66,4 +70,16 @@ pub fn theoretic_stay_avg_erlang(lambda: f64, theta: f64, rho: f64, k: usize, be
         + e_t / (1.0 / lambda + e_t) * e_rt;
 
     e_w + e_b
+}
+
+pub fn corrected_standard_deviation(avg: f64, data: &[f64]) -> f64 {
+    f64::sqrt(1.0 / (data.len() - 1) as f64 * data.iter().map(|d| (d - avg).powi(2)).sum::<f64>())
+}
+
+pub fn test_statistic(avg: f64, theoretical_avg: f64, standard_deviation: f64, n: usize) -> f64 {
+    (avg - theoretical_avg) / (standard_deviation / f64::sqrt((n - 1) as f64))
+}
+
+pub fn is_inside_interval(value: f64, threshold: f64) -> bool {
+    (-threshold) <= value && value <= threshold
 }
