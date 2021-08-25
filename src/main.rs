@@ -7,15 +7,13 @@ pub mod graphs;
 pub mod measures;
 pub mod simulation;
 pub mod variables;
-
-use crate::measures::{corrected_standard_deviation, Data};
-use crate::simulation::Simulation;
-use crate::variables::{generator, ErlangParameter, ExponentialParameter, PoissonParameter};
-
 use crate::graphs::{
     print_avg_stay_graph_for_erlang, print_avg_stay_graph_for_exp, print_p_off_graph,
     print_p_setup_graph,
 };
+use crate::measures::{corrected_standard_deviation, Data};
+use crate::simulation::Simulation;
+use crate::variables::{generator, ErlangParameter, ExponentialParameter, PoissonParameter};
 use indicatif::ProgressIterator;
 use measures::Mean;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -33,12 +31,29 @@ fn main() {
     launch_erlang(simulations_by_batch, arrivals_number, theta, &rhos);
 }
 
+/// This function will launch the experiments linked to the queue having Exponential law describing
+/// the service times.
+///
+/// Arguments:
+///  
+/// * `simulations_by_batch`: The number of simulations that will be launched for each rho value.
+/// * `arrivals_number`: The number of clients that will enter the queue.
+/// * `theta`: The parameter of the law describing the setup/warmup times (Exponential)
+/// * `rhos`: The values of rho for which we want results
+///
+/// Return:
+///
+/// Nothing BUT this function will generate 6 graphs: the average stay in the queue (by rho), the
+/// probability of arriving with the server warming up (by rho) and the probability of arriving
+/// with the server offline (by rho).
+/// Those 3 kind of graphs are declined with the hypothesis testing that the computed point is equal
+/// to the theoretical value.
 fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
-    let lambda = 1.0;
+    let lambda = 1.0; // the value for the parameter of the arrival (Poisson)
 
     let mut values: Vec<Data> = Vec::new();
     for &rho in rhos.iter().progress() {
-        let mu = lambda / rho;
+        let mu = lambda / rho; // value for the service parameter (Exponential)
 
         // simulations are computed in parallel
         let simulations = (0..=simulations_by_batch)
@@ -61,6 +76,9 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
             .iter()
             .map(|s: &Simulation| s.probability_server_setup())
             .calculate_mean();
+
+        // the way to calculate a corrected standard deviation:
+        // sqrt( 1 / (n-1) * sum( (µ - µ̂)² ) )
 
         let corrected_standard_deviation_avg_stay = f64::sqrt(
             1.0 / (simulations_by_batch - 1) as f64
@@ -95,11 +113,11 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
             beta: None,
             theta,
             avg_stay_time,
-            corrected_standard_deviation_avg_stay,
+            corrected_variance_avg_stay: corrected_standard_deviation_avg_stay,
             probability_p_off,
-            corrected_standard_deviation_p_off,
+            corrected_variance_p_off: corrected_standard_deviation_p_off,
             probability_p_setup,
-            corrected_standard_deviation_p_setup,
+            corrected_variance_p_setup: corrected_standard_deviation_p_setup,
             n_simulations: simulations_by_batch,
         });
     }
@@ -108,11 +126,29 @@ fn launch_exp(simulations_by_batch: usize, arrivals_number: usize, theta: f64, r
     let _ = print_p_off_graph(&values, "images/exp_p_off_by_rho");
 }
 
+/// This function will launch the experiments linked to the queue having Exponential law describing
+/// the service times.
+///
+/// Arguments:
+///  
+/// * `simulations_by_batch`: The number of simulations that will be launched for each rho value.
+/// * `arrivals_number`: The number of clients that will enter the queue.
+/// * `theta`: The parameter of the law describing the setup/warmup times (Exponential)
+/// * `rhos`: The values of rho for which we want results
+///
+/// Return:
+///
+/// Nothing BUT this function will generate 6 graphs: the average stay in the queue (by rho), the
+/// probability of arriving with the server warming up (by rho) and the probability of arriving
+/// with the server offline (by rho).
+/// Those 3 kind of graphs are declined with the hypothesis testing that the computed point is equal
+/// to the theoretical value.
 fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64, rhos: &[f64]) {
     let mut values: Vec<Data> = Vec::new();
+    let mut d: Option<f64> = None; // used to compute 𝔼[W²]
+
     let k: usize = 5; // Erlang shape
     let lambda = 1.0; // Poisson param
-    let mut d: Option<f64> = None;
     for &rho in rhos.iter().progress() {
         let beta = rho / lambda / k as f64; // Erlang scale -> /!\ rate = 1/beta
 
@@ -179,11 +215,11 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
             beta: Some(beta),
             theta,
             avg_stay_time,
-            corrected_standard_deviation_avg_stay,
+            corrected_variance_avg_stay: corrected_standard_deviation_avg_stay,
             probability_p_off,
-            corrected_standard_deviation_p_off,
+            corrected_variance_p_off: corrected_standard_deviation_p_off,
             probability_p_setup,
-            corrected_standard_deviation_p_setup,
+            corrected_variance_p_setup: corrected_standard_deviation_p_setup,
             n_simulations: simulations_by_batch,
         });
     }
@@ -198,6 +234,17 @@ fn launch_erlang(simulations_by_batch: usize, arrivals_number: usize, theta: f64
 /// service: exponential of parameter mu
 /// warmup: exponential of parameter theta
 /// n people are allowed to enter the queue
+///
+/// Arguments:
+///
+/// * `n`: The number of people that will enter the queue
+/// * `lambda`: The parameter used for the Poisson distribution (arrival)
+/// * `mu`: The parameter used for the Exponential distribution (service)
+/// * `theta`: The parameter used for the Exponential distribution (warmup)
+///
+/// Returns:
+/// A `Simulation` "object" (it is a struct really) containing all the useful information for
+/// further calculations.
 fn exp_service_time(n: usize, lambda: f64, mu: f64, theta: f64) -> Simulation {
     // sanity check : rho must always be less than one
     assert!(lambda / mu < 1.0);
@@ -215,6 +262,18 @@ fn exp_service_time(n: usize, lambda: f64, mu: f64, theta: f64) -> Simulation {
 /// service: erlang of parameters k, beta (beta is scale)
 /// warmup: exponential of parameter theta
 /// n people are allowed to enter the queue
+///
+/// Arguments:
+///
+/// * `n`: The number of people that will enter the queue
+/// * `lambda`: The parameter used for the Poisson distribution (arrival)
+/// * `theta`: The parameter used for the Exponential distribution (warmup)
+/// * `k`: One of the two parameters (shape) used for the Erlang distribution (service)
+/// * `beta`: The other parameter (scale) used for the Erlang distribution (service)
+///
+/// Returns:
+/// A `Simulation` "object" (it is a struct really) containing all the useful information for
+/// further calculations.
 fn erlang_service_time(n: usize, lambda: f64, theta: f64, k: usize, beta: f64) -> Simulation {
     assert!(lambda * k as f64 * beta < 1.0);
 
@@ -228,6 +287,18 @@ fn erlang_service_time(n: usize, lambda: f64, theta: f64, k: usize, beta: f64) -
 /// The `queue` function is the core of this project.
 ///
 /// This simulate the arrival of clients, their waiting time and service time.
+///
+/// Arguments:
+///
+/// * `n`: The number of jobs that will enter the queue.
+/// * `inter_arrival_param`: The parameter of the law that will describe the inter-arrival rate.
+/// * `service_param`: The parameter of the law that will describe the services times.
+/// * `warming_up_param`: The parameter of the law that will describe the warmup time.
+///
+/// Returns:
+///
+/// A `Simulation` "object" (it is a struct really) containing all the useful information for
+/// further calculations.
 fn queue(
     n: usize,
     inter_arrival_param: Parameter,

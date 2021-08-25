@@ -2,8 +2,6 @@
 
 Projet du cours de processus stochastiques.
 
-Je suis désolé, je n'ai pas eu le temps de commenter autant que ce que j'aurais voulu.
-Je compte le faire dans la journée du 25/08/2021 et pousser ces commentaire sur le [github](https://github.com/latour-gui/queue.git)
 
 ## Installation & utilisation
 
@@ -43,6 +41,13 @@ Cette commande va `build` et `run` le projet, c'est à dire récupérer toutes l
 ### E[W²]
 
 25.65760339747278
+
+## Documentation
+
+Il est possible de consulter la documentation sous forme web à l'aide de la commande suivante:
+```shell
+cargo doc --open
+```
 
 ## Auteur
 

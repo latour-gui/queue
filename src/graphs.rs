@@ -1,3 +1,4 @@
+//! The `graphs.rs` file is a dump of all the functions that render graphs.
 use crate::measures::{
     is_inside_interval, test_statistic, theoretic_p_off_exp, theoretic_p_setup_exp,
     theoretic_stay_avg_erlang, theoretic_stay_avg_exp, Data,
@@ -87,7 +88,7 @@ pub fn print_avg_stay_graph_for_exp(values: &Vec<Data>) -> Result<(), Box<dyn st
             test_statistic(
                 d.avg_stay_time,
                 v,
-                d.corrected_standard_deviation_avg_stay,
+                d.corrected_variance_avg_stay,
                 d.n_simulations,
             )
         })
@@ -208,7 +209,7 @@ pub fn print_avg_stay_graph_for_erlang(
             test_statistic(
                 d.avg_stay_time,
                 v,
-                d.corrected_standard_deviation_avg_stay,
+                d.corrected_variance_avg_stay,
                 d.n_simulations,
             )
         })
@@ -328,7 +329,7 @@ pub fn print_p_setup_graph(
             test_statistic(
                 d.probability_p_setup,
                 v,
-                d.corrected_standard_deviation_p_setup,
+                d.corrected_variance_p_setup,
                 d.n_simulations,
             )
         })
@@ -448,7 +449,7 @@ pub fn print_p_off_graph(
             test_statistic(
                 d.probability_p_off,
                 v,
-                d.corrected_standard_deviation_p_off,
+                d.corrected_variance_p_off,
                 d.n_simulations,
             )
         })
